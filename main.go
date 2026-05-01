@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -24,9 +25,11 @@ type book struct {
 var db *sql.DB
 
 func connectDB() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Ошибка загрузки .env файла")
+	if os.Getenv("DB_HOST") == "" {
+		err := godotenv.Load(".env")
+		if err != nil {
+			log.Fatal("Ошибка загрузки .env файла")
+		}
 	}
 
 	dsn := fmt.Sprintf(
@@ -38,17 +41,23 @@ func connectDB() {
 		os.Getenv("DB_NAME"),
 	)
 
+	var err error
 	db, err = sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatal("Ошибка подключения к БД: ", err)
 	}
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatal("БД недоступна: ", err)
+	for i := 1; i <= 10; i++ {
+		err = db.Ping()
+		if err == nil {
+			fmt.Println("✅ Подключение к PostgreSQL успешно!")
+			return
+		}
+		fmt.Printf("⏳ Попытка %d/10 — БД ещё не готова, ждём...\n", i)
+		time.Sleep(3 * time.Second)
 	}
 
-	fmt.Println("Подключение к PostgreSQL успешно!")
+	log.Fatal("❌ Не удалось подключиться к БД после 10 попыток")
 }
 
 func main() {
